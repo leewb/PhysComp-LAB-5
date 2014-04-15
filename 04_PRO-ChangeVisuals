@@ -1,0 +1,297 @@
+/*
+ * Lab 5 Ex 2 - Physical World to Screen: Change Visuals
+ * Lee Saynor
+ * DIGF 2B03 Physical Computing
+ * OCAD University
+ * Created on Mar 30, 2014
+ *
+ *  Capacative IR touch sensor through glass
+ *
+ * Based on:
+ * http://arduino.cc/en/Tutorial/Graph
+ * http://arduino.cc/en/Tutorial/VirtualColorMixer
+ * http://arduino.cc/en/Tutorial/SerialCallResponse
+ * http://arduino.cc/en/Tutorial/SerialCallResponseASCII
+ * Capacitive touch glass, Arduino Forum
+ * http://forum.arduino.cc/index.php/topic,120046.0.html
+ * 6.5 Measuring Distance Accurately, Arduino Cookbook by Michael Margolis
+ * Bloom Post Process by Christopher Webb
+ * http://www.openprocessing.org/sketch/30110
+ * Connecting Arduino to Processing ...to Arduino, Sparkfun
+ * https://learn.sparkfun.com/tutorials/connecting-arduino-to-processing/to-arduino
+ * Crossfade RGB LEDs, Learning Arduino by Clay Shirky
+ * http://www.arduino.cc/en/Tutorial/DimmingLEDs
+ *
+ */
+
+
+import processing.serial.*;     // import the Processing serial library
+Serial myPort;                  // The serial port
+
+float bgcolor;          // Background color
+float fgcolor;          // Fill color
+float mV, prox;         // Values from IR
+int proxThresh;         // For "if proximity is closer than..."
+boolean threshPassed;   // Has proximity threshhold been passed?
+//float xpos, ypos;       // Starting position of the ball
+
+PImage img;
+float widX, widY;
+
+BloomPProcess bloom = new BloomPProcess();
+
+
+void setup() {
+  size(690, 810);
+
+  // List all the available serial ports
+  println(Serial.list());
+
+  myPort = new Serial(this, Serial.list()[0], 9600);
+
+  // read bytes into a buffer until you get a linefeed (ASCII 10):
+  myPort.bufferUntil('\n');
+  
+  // draw with smooth edges & no stroke:
+  smooth();
+  noStroke();
+  
+  img = loadImage("GainesBurgers-jpg-1080h.jpg");
+  proxThresh = 28;
+  threshPassed = false;
+}
+
+
+void draw() {
+  background(bgcolor);
+  
+  drawImg(0, 0, 690, 810);    //690,810(70%)  //920,1080(100%)
+  bloom.UpdateParams();
+  bloom.ApplyBloom();
+  
+  noFill();
+  strokeWeight(2);
+  stroke(255, 0, 0);
+  ellipse(467, 498, proxThresh*6.2, proxThresh*6.2);   // Threshold indicator
+  strokeWeight(3);
+  stroke(#FFFDDB);
+  // Draw the shape
+  ellipse(467, 498, prox*6.2, prox*6.2);
+}
+
+
+void drawImg(float x, float y, float widX, float widY) {
+  image(img, x, y, widX, widY);
+}
+
+
+// serialEvent  method is run automatically by the Processing applet
+// whenever the buffer reaches the  byte value set in the bufferUntil() 
+// method in the setup():
+
+void serialEvent(Serial myPort) { 
+  // read the serial buffer:
+  String myString = myPort.readStringUntil('\n');
+  // if you got any bytes other than the linefeed:
+  myString = trim(myString);
+ 
+  // split the string at the commas
+  // and convert the sections into integers:
+  int sensors[] = int(split(myString, ','));
+
+  // print out the values you got:
+  /*for (int sensorNum = 0; sensorNum < sensors.length; sensorNum++) {
+    print("Sensor " + sensorNum + ": " + sensors[sensorNum] + "\t"); 
+  }*/
+  print("Prox: " + prox + "\t" + "\t" + "Threshhold of " + proxThresh + " passed?: " + threshPassed + "\t"); //<---------printing prox revealed my error
+  //print("Threshhold of " + proxThresh + " passed?: " + threshPassed + "\t");
+  // add a linefeed after all the sensor values are printed:
+  println();
+  if (sensors.length > 1) {
+    //xpos = map(sensors[0], 0, 1023, 0, width);
+    //ypos = map(sensors[1], 0, 1023, 0, height);
+    mV = sensors[0];
+    prox = sensors[1];    //map(sensors[1], 15, 150, 0, height);
+    //fgcolor = sensors[2];
+    if (sensors[1] <= proxThresh) {   //<------------------------Big mistake: I was asking if prox (~200.0) was less than 40; it never was
+      threshPassed = true;
+    } else {
+      threshPassed = false;
+    }
+  }
+  
+  // send a byte to ask for more data:
+  if (threshPassed == true) {
+    myPort.write("2");
+  } else {
+    myPort.write("1");
+  }
+}
+
+void mouseClicked() {
+  println(mouseX, mouseY);    // For locating target in image
+}
+
+
+
+
+
+
+// Bloom Post Process by Christopher Webb
+// http://www.openprocessing.org/sketch/30110
+
+public class BloomPProcess
+{
+   
+  private PImage    bloomTarget; 
+  private int       BloomThreshold   = 255; //the minimum brightness that will be "bloomed"
+  private int       BloomRadius      = 33;   //the radius of the bloom    //10
+   
+  BloomPProcess()
+  {
+    SetUpTarget();
+  }
+   
+   
+  //dont use this normally
+  public void UpdateParams() {
+    if (threshPassed == true) {
+      //BloomThreshold = int( width / 255 ) * mouseX;    //255
+      //BloomThreshold = int(map(prox, 400, 200, 255, 220));
+      BloomThreshold = 255-int(random(50, 60));
+      //BloomRadius = mouseY/10;    //10
+    } else {
+      BloomThreshold = 255;
+    }
+    BloomRadius = 53;    
+  }
+   
+  //creates a transparent texture/image to use to create and apply the bloom
+  private void SetUpTarget()
+  {
+    bloomTarget = createImage( width , height , RGB);
+    bloomTarget.loadPixels();
+    for (int i = 0; i < bloomTarget.pixels.length; i++)
+    {
+      bloomTarget.pixels[i] = color(0, 0, 0 );
+    }
+  }
+   
+  //called at the end of a draw loop, this applies bloom to everything on screen
+  public void ApplyBloom()
+  {
+    SetUpTarget();
+    BloomExtract();
+    Blur( bloomTarget , BloomRadius );
+    //draw the bloomed image over the scene using addtive blending
+    blend( bloomTarget , 0 , 0 , width , height , 0 , 0 , width , height , ADD );   
+  }
+   
+  //removes the pixels which we wish to apply bloom to ( according to the bloom threshold )
+  private void BloomExtract()
+  {
+    loadPixels();
+    bloomTarget.loadPixels();
+    for (int i = 0; i < bloomTarget.pixels.length; i++)
+    {
+      if( brightness( pixels[i] ) >= BloomThreshold )
+      {
+        bloomTarget.pixels[i] = pixels[i];
+      }  
+    }
+    bloomTarget.updatePixels();
+  }
+   
+   
+  //blurs an image
+  void Blur( PImage _img , int radius )
+  {
+    if (radius<1)
+    {
+      return;
+    }
+     
+    int w=_img.width;
+    int h=_img.height;
+    int wm=w-1;
+    int hm=h-1;
+    int wh=w*h;
+    int div=radius+radius+1;
+    int r[]=new int[wh];
+    int g[]=new int[wh];
+    int b[]=new int[wh];
+    int rsum,gsum,bsum,x,y,i,p,p1,p2,yp,yi,yw;
+    int vmin[] = new int[max(w,h)];
+    int vmax[] = new int[max(w,h)];
+    int[] pix=_img.pixels;
+    int dv[]=new int[256*div];
+    for (i=0;i<256*div;i++){
+       dv[i]=(i/div);
+    }   
+     
+    yw=yi=0;  
+     
+    for (y=0;y<h;y++)
+    {
+      rsum=gsum=bsum=0;
+      for(i=-radius;i<=radius;i++){
+        p=pix[yi+min(wm,max(i,0))];
+        rsum+=(p & 0xff0000)>>16;
+        gsum+=(p & 0x00ff00)>>8;
+        bsum+= p & 0x0000ff;
+     }
+      for (x=0;x<w;x++)
+      {
+       
+        r[yi]=dv[rsum];
+        g[yi]=dv[gsum];
+        b[yi]=dv[bsum];
+   
+        if(y==0)
+        {
+          vmin[x]=min(x+radius+1,wm);
+          vmax[x]=max(x-radius,0);
+         }
+         p1=pix[yw+vmin[x]];
+         p2=pix[yw+vmax[x]];
+   
+        rsum+=((p1 & 0xff0000)-(p2 & 0xff0000))>>16;
+        gsum+=((p1 & 0x00ff00)-(p2 & 0x00ff00))>>8;
+        bsum+= (p1 & 0x0000ff)-(p2 & 0x0000ff);
+        yi++;
+      }
+      yw+=w;
+    }
+     
+    for (x=0;x<w;x++)
+    {
+      rsum=gsum=bsum=0;
+      yp=-radius*w;
+      for(i=-radius;i<=radius;i++)
+      {
+        yi=max(0,yp)+x;
+        rsum+=r[yi];
+        gsum+=g[yi];
+        bsum+=b[yi];
+        yp+=w;
+      }
+      yi=x;
+      for (y=0;y<h;y++)
+      {
+        pix[yi]=0xff000000 | (dv[rsum]<<16) | (dv[gsum]<<8) | dv[bsum];
+        if(x==0){
+          vmin[y]=min(y+radius+1,hm)*w;
+          vmax[y]=max(y-radius,0)*w;
+        }
+        p1=x+vmin[y];
+        p2=x+vmax[y];
+   
+        rsum+=r[p1]-r[p2];
+        gsum+=g[p1]-g[p2];
+        bsum+=b[p1]-b[p2];
+   
+        yi+=w;
+      }
+    } 
+  }
+}
