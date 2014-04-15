@@ -1,0 +1,53 @@
+/*
+ * Lab 5 Ex 1 - Screen to Physical World
+ * Lee Saynor
+ * DIGF 2B03 Physical Computing
+ * OCAD University
+ * Created on Mar 23, 2014
+ *
+ *
+ * Based on:
+ * Physical Pixel
+ * http://arduino.cc/en/Tutorial/PhysicalPixel
+ * 8.1 Controlling the Position of a Servo
+ * Arduino Cookbook
+ * Dimmer by David A. Mellis
+ * http://arduino.cc/en/Tutorial/Dimmer
+ * Learning Processing Chapter 10: Example 10-2: Bouncing Ball Class by Daniel Shiffman
+ * http://www.learningprocessing.com/examples/chapter-10/example-10-2/
+ * Simple Particle System by Daniel Shiffman
+ * http://processing.org/examples/simpleparticlesystem.html
+ * PVector by Daniel Shiffman 
+ * http://processing.org/tutorials/pvector/
+ * Follow 1 by Keith Peters
+ * http://processing.org/examples/follow1.html
+ *
+ */
+
+#include <Servo.h>
+Servo myServo;            // create servo object to control a servo 
+int pos = 145;                        // variable to store the servo position 
+
+const int ledPin = 9;      // the pin that the LED is attached to
+
+void setup()
+{
+  // initialize the serial communication:
+  Serial.begin(9600);
+  // initialize the ledPin as an output:
+  pinMode(ledPin, OUTPUT);
+  myServo.attach(9);  // attaches the servo on pin 9 to the servo object
+}
+
+void loop() {
+  byte pos;
+
+  // check if data has been sent from the computer:
+  if (Serial.available()) {
+    // read the most recent byte (which will be from 0 to 255):
+    pos = Serial.read();
+    //pos = map(pos, 100, 980, 20, 160);
+    myServo.write(pos);
+    delay(15);
+  }
+}
