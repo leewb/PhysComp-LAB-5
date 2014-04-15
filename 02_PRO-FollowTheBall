@@ -1,0 +1,255 @@
+/*
+ * Lab 5 Ex 1 - Screen to Physical World: Follow The Ball
+ * Lee Saynor
+ * DIGF 2B03 Physical Computing
+ * OCAD University
+ * Created on Mar 30, 2014
+ *
+ *  Ball now has particle system "comet" trail based on angle of its motion
+ *
+ * Based on:
+ * Physical Pixel
+ * http://arduino.cc/en/Tutorial/PhysicalPixel
+ * 8.1 Controlling the Position of a Servo
+ * Arduino Cookbook
+ * Dimmer by David A. Mellis
+ * http://arduino.cc/en/Tutorial/Dimmer
+ * Learning Processing Chapter 10: Example 10-2: Bouncing Ball Class by Daniel Shiffman
+ * http://www.learningprocessing.com/examples/chapter-10/example-10-2/
+ * Simple Particle System by Daniel Shiffman
+ * http://processing.org/examples/simpleparticlesystem.html
+ * PVector by Daniel Shiffman 
+ * http://processing.org/tutorials/pvector/
+ * Follow 1 by Keith Peters
+ * http://processing.org/examples/follow1.html
+ *
+ */
+
+
+// ENABLE SERIAL STUFF FOR SERVO
+//import processing.serial.*;
+//Serial port;
+
+Ball myBall;
+ParticleSystem ps;
+
+// For follow angle
+float x = 100;
+float y = 100;
+float angle1 = 0.0;
+float segLength = 170;   // Essentially delay time for particle system angle change  //50
+
+color bg;
+float r, g, b;
+
+
+void setup() {
+  size(2560, 1080);  //2560, 1080
+  ps = new ParticleSystem(new PVector(0, 0));
+  //ortho();
+  smooth();
+  //background(#D7EBED);
+  bg = color(170, 203, 39);    //blue #1E95F5   green #AACB27
+  background(bg);
+  //background(160, 0, 0);
+  
+  // CEREAL DEBUGGING:
+  //println("Available serial ports:");
+  //println(Serial.list());
+  //port = new Serial(this, Serial.list()[0], 9600);  
+  
+    // If you know the name of the port used by the Arduino board, you
+    // can specify it directly like this.
+    //port = new Serial(this, "COM3", 9600);
+  
+  myBall = new Ball(50);
+}
+
+void draw() {
+  b = map(myBall.y, 0, height, 100, 255);
+  bg = color(170, 203, b);
+  background(bg);
+  //background(#D7EBED);
+  //lights();    <------------lighting still looks stupid on sphere
+  
+  // write the current X-position of the mouse to the serial port as
+  // a single byte
+  //port.write(byte(myBall.x)); <----------not working, exceeds byte maybe?
+  float mappedBallX = map(myBall.x, 2460, 100, 55, 125);      //35,145 still too wide
+  int intMappedBallX = int(mappedBallX);
+  fill(0);
+  text(intMappedBallX + "   " + int(myBall.x) + "  " + int(myBall.y), 15, 15);
+  //port.write(intMappedBallX);
+  
+  /*ps.addParticle();
+  pushMatrix();
+  translate(myBall.x, myBall.y);
+  //rotate(PI/2.0);
+  rotate(PI*frameCount/400);
+  ps.run();
+  popMatrix();*/
+  
+  
+  // PARTICLE SYSTEM & ANGLE
+  float dx = myBall.x - x;
+  float dy = myBall.y - y;
+  angle1 = atan2(dy, dx);  
+  x = myBall.x - (cos(angle1) * segLength);
+  y = myBall.y - (sin(angle1) * segLength);
+  
+  ps.addParticle();
+  pushMatrix();
+  translate(myBall.x, myBall.y);
+  rotate(angle1+THIRD_PI);
+  ps.run();
+  popMatrix();
+  
+  // Move and display ball:
+  myBall.move();
+  myBall.display();
+  
+  //fill(0, 0, 255, 255);
+  //rect(mouseX, mouseY, 50, height);
+}
+
+
+
+
+// Learning Processing
+// Daniel Shiffman
+// http://www.learningprocessing.com
+
+// Example 10-2: Bouncing ball class
+
+class Ball {
+
+  float r;   // radius
+  float x, y; // location
+  float xspeed, yspeed; // 
+  int realSpeed = 7;    //15
+  
+  // Constructor
+  Ball(float tempR) {
+    r = tempR;
+    x = r+1;
+    y = random(height*0.33, height*0.66);
+    xspeed = realSpeed;
+    yspeed = realSpeed;
+  }
+  
+  void move() {
+    if (millis() > 4000) {
+      x += xspeed; // Increment x
+      y += yspeed; // Increment y
+      
+      // Check horizontal edges
+      if (x > width-r || x < 0+r) {
+        xspeed *= - 1;
+      }
+      //Check vertical edges
+      if (y > height-r || y < 0+r) {
+        yspeed *= - 1;
+      }
+    }
+  }
+  
+  // Draw the ball
+  void display() {
+    //stroke(0);
+    //noStroke();
+    //fill(#F1F51E);
+    //fill(255, 0, 50);
+    //ellipse(x,y,r*2,r*2);
+    //pushMatrix();
+    //translate(x, y);    
+    //rotateX(frameCount*0.03);
+    //rotateY(frameCount*0.04);
+    //sphereDetail(5);
+    noFill();
+    //stroke(255);
+    //strokeWeight(6);
+    ellipse(x, y, r, r);
+    //sphere(r-40);  <------------lighting still looks stupid
+    //popMatrix();
+  }
+}
+
+
+
+
+// A simple Particle class
+
+class Particle {
+  PVector location;
+  PVector velocity;
+  PVector acceleration;
+  float lifespan;
+  float r, g, b;
+
+  Particle(PVector l) {
+    acceleration = new PVector(0,0.05);
+    velocity = new PVector(random(-2,2),random(-2,5));    //random(-1, 1), random(-2, 0);
+    location = l.get();
+    lifespan = 255.0;
+  }
+
+  void run() {
+    update();
+    display();
+  }
+
+  // Method to update location
+  void update() {
+    velocity.add(acceleration);
+    location.add(velocity);
+    lifespan -= 0.8;              // How far particles will get before dying
+  }
+
+  // Method to display
+  void display() {
+    //stroke(255,lifespan);
+    noStroke();
+    b = map(myBall.y, 0, height, 30, 255);    // Lower on canvas change colour... Couldn't get working
+    fill(241, 245, b, lifespan);
+    ellipse(location.x, location.y, 12, 12);    //6,6
+  }
+  
+  // Is the particle still useful?
+  boolean isDead() {
+    if (lifespan < 0.0) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+}
+
+
+
+
+// A class to describe a group of Particles
+// An ArrayList is used to manage the list of Particles 
+
+class ParticleSystem {
+  ArrayList<Particle> particles;
+  PVector origin;
+
+  ParticleSystem(PVector location) {
+    origin = location.get();
+    particles = new ArrayList<Particle>();
+  }
+
+  void addParticle() {
+    particles.add(new Particle(origin));
+  }
+
+  void run() {
+    for (int i = particles.size()-1; i >= 0; i--) {
+      Particle p = particles.get(i);
+      p.run();
+      if (p.isDead()) {
+        particles.remove(i);
+      }
+    }
+  }
+}
